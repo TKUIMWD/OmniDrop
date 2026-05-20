@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  web:
+    build: ./php
+    ports:
+      - "12340:80"
+    volumes:
+      - ./src:/var/www/html
+    depends_on:
+      - db
+    networks:
+      - ctf_net
+
+  db:
+    image: mariadb:10.6
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: omnidrop
+      MYSQL_USER: omniuser
+      MYSQL_PASSWORD: omnipassword!!
+    volumes:
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./mysql/data:/var/lib/mysql
+    networks:
+      - ctf_net
+
+networks:
+  ctf_net:
+    driver: bridge

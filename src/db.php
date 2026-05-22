@@ -1,8 +1,8 @@
 <?php
-$host = 'db';
-$db   = 'omnidrop';
-$user = 'omniuser';
-$pass = 'omnipassword!!';
+$host = getenv('DB_HOST');
+$db   = getenv('MYSQL_DATABASE');
+$user = getenv('MYSQL_USER');
+$pass = getenv('MYSQL_PASSWORD');
 $charset = 'utf8mb4';
 
 $dsn = "mysql:host=$host;dbname=$db;charset=$charset";

@@ -17,8 +17,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['file'])) {
         $name = preg_replace('/^.*[\\\\\\/]/', '', $_FILES['file']['name']);
         $uuid = bin2hex(random_bytes(16));
         $disk_uuid = bin2hex(random_bytes(16));
-        $upload_dir = __DIR__ . '/storage/';
-        if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
         
         $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
         $allowed = ['jpg','jpeg','png','gif','pdf','doc','docx','ppt','pptx','xls','xlsx','csv','zip','txt','rar','7z'];
@@ -26,13 +24,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['file'])) {
         if (!in_array($ext, $allowed)) {
             $upload_err = "Upload Failed. Only documents and images are allowed.";
         } else {
-            $real_path = '/storage/' . $uuid . '_' . $disk_uuid . '_' . $name;
-            $loc_path = __DIR__ . $real_path;
+            // Generate S3 key path
+            $s3_key = "files/" . $uuid . "/" . $disk_uuid . "_" . $name;
+            $tmp_file = $_FILES['file']['tmp_name'];
+            $file_size = $_FILES['file']['size'];
             
-            if (move_uploaded_file($_FILES['file']['tmp_name'], $loc_path)) {
+            // Upload to S3
+            if ($s3Manager->uploadFile($tmp_file, $s3_key)) {
                 $stmt = $pdo->prepare('INSERT INTO files (user_id, uuid, filename, real_path, size) VALUES (?, ?, ?, ?, ?)');
-                $stmt->execute([$user_id, $uuid, $name, $real_path, filesize($loc_path)]);
-                $upload_msg = "File uploaded via Dropzone.";
+                $stmt->execute([$user_id, $uuid, $name, $s3_key, $file_size]);
+                $upload_msg = "File uploaded successfully to S3.";
+            } else {
+                $upload_err = "Failed to upload file to S3. Please try again.";
             }
         }
     } else {
@@ -55,11 +58,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $stmt->execute([$file_id, $user_id]);
     $file_data = $stmt->fetch();
     if ($file_data) {
-        $db_path = $file_data['real_path'];
-        $full_path = (strpos($db_path, '/var/www/html') === 0) ? $db_path : __DIR__ . $db_path;
-        if (file_exists($full_path)) {
-            unlink($full_path);
-        }
+        $s3_key = $file_data['real_path'];
+        // Delete from S3
+        $s3Manager->deleteFile($s3_key);
+        // Delete from database
         $pdo->prepare('DELETE FROM shares WHERE file_id = ?')->execute([$file_id]);
         $pdo->prepare('DELETE FROM files WHERE id = ?')->execute([$file_id]);
         $msg = "File deleted successfully.";
@@ -94,40 +96,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && isset($_GE
     $file_data = $stmt->fetch();
 
     if ($file_data) {
-        $db_path = $file_data['real_path'];
-        $full_path = (strpos($db_path, '/var/www/html') === 0) ? $db_path : __DIR__ . $db_path;
+        $s3_key = $file_data['real_path'];
+        $filename = preg_replace('/^.*[\\\\\\/]/', '', $file_data['filename']);
 
-        if (file_exists($full_path)) {
-            $filename = preg_replace('/^.*[\\\\\\/]/', '', $file_data['filename']);
-            $filesize = filesize($full_path);
-
-            if ($_GET['action'] === 'download') {
-                header('Content-Description: File Transfer');
-                header('Content-Type: application/octet-stream');
-                header('Content-Disposition: attachment; filename="' . addslashes($filename) . '"');
-                header('Expires: 0');
-                header('Cache-Control: must-revalidate');
-                header('Pragma: public');
-                header('Content-Length: ' . $filesize);
-                readfile($full_path);
+        if ($_GET['action'] === 'download') {
+            // Redirect to presigned URL for download
+            $presigned_url = $s3Manager->getPresignedUrl($s3_key, 3600); // 1 hour expiry
+            if ($presigned_url) {
+                header('Location: ' . $presigned_url);
                 exit;
-            } elseif ($_GET['action'] === 'preview') {
-                $mime_type = mime_content_type($full_path) ?: 'application/octet-stream';
-                
-                if (preg_match('/html|javascript|xml|svg/i', $mime_type)) {
-                    $mime_type = 'text/plain';
-                }
-
-                header('Content-Type: ' . $mime_type);
-                header('X-Content-Type-Options: nosniff'); // 防禦 MIME Sniffing
-                header('Content-Security-Policy: default-src \'none\'; style-src \'unsafe-inline\'; sandbox'); // 最高級別的預覽沙盒
-                header('Content-Disposition: inline; filename="' . addslashes($filename) . '"');
-                header('Content-Length: ' . $filesize);
-                readfile($full_path);
-                exit;
+            } else {
+                $upload_err = "Failed to generate download link.";
             }
-        } else {
-            $upload_err = "File not found on disk.";
+        } elseif ($_GET['action'] === 'preview') {
+            // Redirect to presigned URL for preview
+            $presigned_url = $s3Manager->getPresignedUrl($s3_key, 3600); // 1 hour expiry
+            if ($presigned_url) {
+                // Use iframe for preview
+                header('Content-Type: text/html');
+                echo '<iframe src="' . htmlspecialchars($presigned_url) . '" style="width:100%; height:100vh; border:none;"></iframe>';
+                exit;
+            } else {
+                $upload_err = "Failed to generate preview link.";
+            }
         }
     } else {
         $upload_err = "Access Denied or File not found.";

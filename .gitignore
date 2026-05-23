@@ -1,4 +1,7 @@
 .DS_Store
 /mysql/data
 /src/storage
+vendor/
+composer.lock
 .env
+.env.local

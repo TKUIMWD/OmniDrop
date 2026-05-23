@@ -18,6 +18,12 @@ try {
      throw new \PDOException($e->getMessage(), (int)$e->getCode());
 }
 
+// Initialize S3 File Manager
+require_once __DIR__ . '/S3FileManager.php';
+$s3Manager = new S3FileManager(
+    getenv('AWS_S3_BUCKET') ?: 'omnidrop-files'
+);
+
 // Fetch Global Settings
 $stmt = $pdo->query("SELECT setting_key, setting_value FROM system_settings");
 $sys_settings = [];

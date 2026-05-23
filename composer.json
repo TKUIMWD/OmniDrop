@@ -1,0 +1,21 @@
+{
+    "name": "omnidrop/omnidrop",
+    "description": "OmniDrop - A file sharing application with AWS integration",
+    "type": "project",
+    "require": {
+        "php": "^7.4",
+        "aws/aws-sdk-php": "^3.300"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.6"
+    },
+    "autoload": {
+        "psr-4": {
+            "OmniDrop\\": "src/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "preferred-install": "dist"
+    }
+}

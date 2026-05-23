@@ -7,12 +7,12 @@ if (isset($_GET['file']) && isset($_GET['share'])) {
     $share = $_GET['share'];
 
     try {
-        $stmt_file = $pdo->prepare('SELECT id, real_path FROM files WHERE uuid = ?');
+        $stmt_file = $pdo->prepare('SELECT id, real_path, filename FROM files WHERE uuid = ?');
         $stmt_file->execute([$uuid]);
         $result = $stmt_file;
         if ($result && $result->rowCount() > 0) {
             $row = $result->fetch(PDO::FETCH_ASSOC);
-            $real_path = $row['real_path'];
+            $s3_key = $row['real_path'];
             $file_id = $row['id'];
             
             // Validate the share token matches the queried file_id (IDOR prevention)
@@ -46,26 +46,14 @@ if (isset($_GET['file']) && isset($_GET['share'])) {
             $stmt_inc = $pdo->prepare('UPDATE shares SET downloads = downloads + 1 WHERE share_uuid = ?');
             $stmt_inc->execute([$share]);
 
-            // Map real path back to relative or read file content
-            if (strpos($real_path, '/var/www/html') !== 0) { $real_path = __DIR__ . $real_path; }
-
-            // Validate the file path stays within the storage directory
-            if (file_exists($real_path) && strpos(realpath($real_path), '/var/www/html/storage') === 0) {
-                // Return clean filename without exposing internal routing prefix (uuid_disk_uuid_)
-                $basename = preg_replace('/^.*[\\\\\\/]/', '', $real_path);
-                $clean_filename = preg_replace('/^([a-fA-F0-9]{32}_){2}/', '', $basename);
-                
-                header('Content-Description: File Transfer');
-                header('Content-Type: application/octet-stream');
-                header('Content-Disposition: attachment; filename="' . addslashes($clean_filename) . '"');
-                header('Expires: 0');
-                header('Cache-Control: must-revalidate');
-                header('Pragma: public');
-                header('Content-Length: ' . filesize($real_path));
-                readfile($real_path);
+            // Get presigned URL from S3
+            $presigned_url = $s3Manager->getPresignedUrl($s3_key, 3600); // 1 hour expiry
+            if ($presigned_url) {
+                // Redirect to presigned URL
+                header('Location: ' . $presigned_url);
                 exit;
             } else {
-                echo "File does not exist internally.";
+                echo "Failed to generate download link.";
             }
         } else {
             echo "Access denied or File does not exist";

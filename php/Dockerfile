@@ -1,13 +1,17 @@
-FROM php:7.4-apache
+FROM php:8.2-apache
 
-# Install system dependencies and PHP extensions
-RUN apt-get update && apt-get install -y \
+# Install system dependencies
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends \
+    ca-certificates \
     curl \
     git \
     zip \
-    unzip \
-    && docker-php-ext-install mysqli pdo pdo_mysql curl \
-    && docker-php-ext-enable mysqli
+    unzip && \
+    docker-php-ext-install mysqli pdo pdo_mysql && \
+    docker-php-ext-enable mysqli && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install Composer
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
@@ -25,3 +29,6 @@ RUN a2enmod rewrite
 
 # Allow .htaccess to override php_value
 RUN sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf
+
+# Set DirectoryIndex
+RUN sed -i 's/DirectoryIndex index.html/DirectoryIndex index.php index.html/' /etc/apache2/mods-enabled/dir.conf

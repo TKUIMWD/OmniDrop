@@ -3,7 +3,7 @@
     "description": "OmniDrop - A file sharing application with AWS integration",
     "type": "project",
     "require": {
-        "php": "^7.4",
+        "php": "^8.0",
         "aws/aws-sdk-php": "^3.300"
     },
     "require-dev": {

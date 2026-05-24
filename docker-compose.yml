@@ -1,21 +1,23 @@
-version: '3.8'
-
 services:
   web:
-    build: ./php
+    build:
+      context: .
+      dockerfile: php/Dockerfile
     ports:
-      - "${PORT}:80"
-    environment:
-      DB_HOST: ${DB_HOST}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      - ${PORT}:80
     volumes:
-      - ./src:/var/www/html
-    depends_on:
-      - db
+      - ./:/var/www/html
+    environment:
+      - DB_HOST=db
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
+      - AWS_S3_BUCKET=${AWS_S3_BUCKET}
     networks:
       - ctf_net
+    depends_on:
+      - db
 
   db:
     image: mariadb:10.6
@@ -25,8 +27,8 @@ services:
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
-      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
       - ./mysql/data:/var/lib/mysql
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - ctf_net
 

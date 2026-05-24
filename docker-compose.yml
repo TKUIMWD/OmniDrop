@@ -7,6 +7,7 @@ services:
       - ${PORT}:80
     volumes:
       - ./:/var/www/html
+      - vendor_data:/var/www/html/vendor
     environment:
       - DB_HOST=db
       - MYSQL_DATABASE=${MYSQL_DATABASE}
@@ -35,3 +36,6 @@ services:
 networks:
   ctf_net:
     driver: bridge
+
+volumes:
+  vendor_data:
